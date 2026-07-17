@@ -1,36 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kasthara Order System
 
-## Getting Started
+Production-ready Next.js order management foundation for Kasthara, a Nepal-based custom laser-engraving and personalized gift business.
 
-First, run the development server:
+## Architecture
+
+- Next.js App Router with TypeScript strict mode
+- PostgreSQL with Prisma ORM and generated migrations
+- JWT authentication with secure HttpOnly cookies
+- Role-based access for `ADMIN` and `STAFF`
+- REST API under `/api/v1` for web and React Native clients
+- Tailwind CSS with shadcn-style owned UI components
+- React Hook Form and Zod validation
+- ExcelJS import preview and XLSX export
+- QR labels containing safe order identifiers only
+- Docker Compose for local PostgreSQL
+
+## Database Schema
+
+The Prisma schema includes normalized models for users, customers, products, orders, order items, payments, order status history, print logs, audit logs, daily order sequences, and label settings.
+
+Important rules:
+
+- Additional payments are stored as separate `Payment` rows.
+- `amountPaid` is recalculated from valid payments.
+- `remainingBalance = totalPrice - amountPaid`.
+- Payment status is separate from order stage.
+- Daily order numbers use `DailyOrderSequence` for atomic sequence increments.
+- Cancellations are soft state through `orderStage`, `cancelledAt`, and audit logs.
+
+## Folder Structure
+
+```text
+prisma/
+  schema.prisma
+  seed.ts
+  migrations/
+src/
+  app/
+    api/v1/
+    (app)/
+    login/
+  components/
+    ui/
+  lib/
+docs/
+  API.md
+```
+
+## Local Setup
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Start PostgreSQL:
+
+```bash
+docker compose up -d
+```
+
+3. Copy and edit env values:
+
+```bash
+cp .env.example .env
+```
+
+4. Generate Prisma client and migrate:
+
+```bash
+npm run db:generate
+npm run db:migrate
+```
+
+5. Seed sample users, products, customers, orders, and payments:
+
+```bash
+npm run db:seed
+```
+
+6. Start the app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Default users:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Admin: `admin@kasthara.local` / `password123`
+- Staff: `staff@kasthara.local` / `password123`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Core Workflows
 
-## Learn More
+- Staff login
+- Fast order creation with paste parsing
+- Duplicate customer warning by normalized Nepal phone number
+- Unique order number generation in `KAS-YYMMDD-001` format
+- Advance and additional payments as payment records
+- Order search by number, phone, last four digits, name, and address
+- Status timeline and audit history
+- Thermal 60 mm x 40 mm label preview and browser print
+- QR value generation as `KASORDER:<orderNumber>`
+- Dashboard and work queues powered by database queries
+- Admin Excel import preview and current-order XLSX export
 
-To learn more about Next.js, take a look at the following resources:
+## Testing
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm test
+npm run lint
+npm run build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Tests cover order number formatting, phone normalization, balance and payment-status calculation, QR value generation, legacy status mapping, and Excel import validation.
 
-## Deploy on Vercel
+## Deployment Notes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Use managed PostgreSQL in production.
+- Set strong `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET`.
+- Run `npm run db:migrate` during release.
+- Keep `APP_URL`, `DEFAULT_TIMEZONE=Asia/Kathmandu`, and `DEFAULT_CURRENCY=NPR` set.
+- Serve behind HTTPS so secure cookies work correctly.
+- Do not expose `/api/v1/*` without authentication checks.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [docs/API.md](docs/API.md) for endpoint details.

@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kasthara-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kasthara
+      POSTGRES_PASSWORD: kasthara
+      POSTGRES_DB: kasthara_order_system
+    ports:
+      - "5432:5432"
+    volumes:
+      - kasthara_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kasthara -d kasthara_order_system"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  kasthara_postgres_data:
