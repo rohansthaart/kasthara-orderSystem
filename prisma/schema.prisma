@@ -234,8 +234,8 @@ model DailyOrderSequence {
 model LabelSetting {
   id             String   @id @default(cuid())
   name           String   @unique
-  widthMm        Int      @default(60)
-  heightMm       Int      @default(40)
+  widthMm        Int      @default(48)
+  heightMm       Int      @default(30)
   marginMm       Int      @default(2)
   fontSize       Int      @default(10)
   showAddress    Boolean  @default(true)

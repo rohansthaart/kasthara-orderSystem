@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { formatEnumLabel } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 
 type Product = { id: string; name: string; productType: string; defaultPrice: number };
@@ -22,6 +24,7 @@ export function NewOrderForm({ products }: { products: Product[] }) {
   const [detected, setDetected] = useState<ParsedCustomerDetails | null>(null);
   const [duplicates, setDuplicates] = useState<Array<{ id: string; name: string; orders: Array<{ orderNumber: string }> }>>([]);
   const [created, setCreated] = useState<{ id: string; orderNumber: string } | null>(null);
+  const [submitError, setSubmitError] = useState("");
   const firstProduct = products[0];
   const form = useForm<FormValues>({
     resolver: zodResolver(orderCreateSchema),
@@ -87,6 +90,7 @@ export function NewOrderForm({ products }: { products: Product[] }) {
   }
 
   async function onSubmit(values: FormValues) {
+    setSubmitError("");
     const response = await fetch("/api/v1/orders", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -94,7 +98,7 @@ export function NewOrderForm({ products }: { products: Product[] }) {
     });
     const json = await response.json();
     if (!response.ok) {
-      alert(json.message ?? "Order creation failed");
+      setSubmitError(json.message ?? "Order creation failed");
       return;
     }
     setCreated({ id: json.data.id, orderNumber: json.data.orderNumber });
@@ -164,8 +168,7 @@ export function NewOrderForm({ products }: { products: Product[] }) {
               <Input {...form.register("alternativePhone")} />
             </Field>
             <Field label="Product">
-              <select
-                className="h-11 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+              <Select
                 value={selectedProductId ?? ""}
                 onChange={(event) => {
                   const product = products.find((entry) => entry.id === event.target.value);
@@ -182,7 +185,7 @@ export function NewOrderForm({ products }: { products: Product[] }) {
                     {product.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label="Product type">
               <Input {...form.register("items.0.productType")} />
@@ -205,11 +208,11 @@ export function NewOrderForm({ products }: { products: Product[] }) {
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <Field label="Delivery method">
-              <select className="h-11 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm" {...form.register("deliveryMethod")}>
+              <Select {...form.register("deliveryMethod")}>
                 <option value="DELIVERY">Delivery</option>
                 <option value="PICKUP">Pickup</option>
                 <option value="COURIER">Courier</option>
-              </select>
+              </Select>
             </Field>
             <Field label="Required delivery date and time">
               <Input type="datetime-local" {...form.register("requiredDeliveryAt")} />
@@ -259,11 +262,11 @@ export function NewOrderForm({ products }: { products: Product[] }) {
               <Input type="number" min="0" {...form.register("advancePayment", { valueAsNumber: true })} />
             </Field>
             <Field label="Payment method">
-              <select className="h-11 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm" {...form.register("paymentMethod")}>
+              <Select {...form.register("paymentMethod")}>
                 {["CASH", "ESEWA", "KHALTI", "FONEPAY", "BANK_TRANSFER", "COD", "OTHER"].map((method) => (
-                  <option key={method} value={method}>{method}</option>
+                  <option key={method} value={method}>{formatEnumLabel(method)}</option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <div className="rounded-md bg-[var(--muted)] p-4 text-sm">
               <div className="flex justify-between"><span>Subtotal</span><strong>NPR {subtotal}</strong></div>
@@ -273,6 +276,7 @@ export function NewOrderForm({ products }: { products: Product[] }) {
             <Button className="w-full" type="submit" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? "Saving..." : "Save order"}
             </Button>
+            {submitError ? <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{submitError}</p> : null}
           </CardContent>
         </Card>
       </aside>

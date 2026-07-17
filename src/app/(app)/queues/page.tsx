@@ -2,8 +2,8 @@ import Link from "next/link";
 import { getTodayWorkQueues } from "@/lib/dashboard-service";
 import { asCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { QueueStatusButton } from "./queue-status-button";
+import { OrderStageBadge } from "@/components/ui/status-badge";
+import { StatusQuickActions } from "@/components/status-quick-actions";
 
 const labels: Record<string, string> = {
   followUpToday: "Follow up today",
@@ -37,13 +37,13 @@ export default async function QueuesPage() {
             <CardContent className="space-y-2">
               {orders.length === 0 ? <p className="text-sm text-[var(--muted-foreground)]">Nothing waiting here.</p> : null}
               {orders.map((order) => (
-                <div key={order.id} className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] p-3">
+                <div key={order.id} className="grid gap-3 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] p-3 sm:grid-cols-[1fr_auto] sm:items-center">
                   <div className="min-w-0">
                     <Link className="font-semibold hover:underline" href={`/orders/${order.id}`}>{order.orderNumber}</Link>
-                    <p className="truncate text-sm text-[var(--muted-foreground)]">{order.customer.name} - {order.customer.primaryPhone}</p>
-                    <div className="mt-1 flex gap-2"><Badge>{order.orderStage}</Badge><Badge>{asCurrency(Number(order.remainingBalance))}</Badge></div>
+                    <p className="truncate text-sm text-[var(--muted-foreground)]">{order.customer.name} / {order.customer.primaryPhone}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2"><OrderStageBadge stage={order.orderStage} /><span className="text-xs font-medium text-[var(--foreground)]">{asCurrency(Number(order.remainingBalance))}</span></div>
                   </div>
-                  {nextStage[key] ? <QueueStatusButton orderId={order.id} orderStage={nextStage[key]} /> : null}
+                  {nextStage[key] ? <StatusQuickActions orderId={order.id} currentStage={order.orderStage} suggestedStage={nextStage[key]} compact /> : null}
                 </div>
               ))}
             </CardContent>

@@ -35,7 +35,7 @@ export default async function DashboardPage() {
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {Object.entries(summary.cards).map(([key, value]) => (
-          <Card key={key}>
+          <Card key={key} className="transition-colors hover:bg-[var(--surface-subtle)]">
             <CardContent>
               <p className="text-sm text-[var(--muted-foreground)]">{cardLabels[key] ?? key}</p>
               <p className="mt-2 text-2xl font-semibold">
@@ -72,7 +72,7 @@ function SimpleChart({ title, rows, money }: { title: string; rows: Array<{ labe
               <span>{row.label}</span>
               <span className="font-medium">{money ? asCurrency(row.value) : row.value}</span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-[var(--muted)]">
+            <div className="h-2 overflow-hidden rounded-full bg-[var(--muted)]" aria-hidden="true">
               <div className="h-full rounded-full bg-[var(--primary)]" style={{ width: `${Math.max(4, (row.value / max) * 100)}%` }} />
             </div>
           </div>

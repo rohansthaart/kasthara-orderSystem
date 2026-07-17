@@ -4,8 +4,8 @@ import { Phone, Printer } from "lucide-react";
 import { getOrderById } from "@/lib/order-service";
 import { asCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { OrderStageBadge, PaymentStatusBadge, formatEnumLabel } from "@/components/ui/status-badge";
 import { PaymentForm } from "./payment-form";
 import { StatusForm } from "./status-form";
 
@@ -19,7 +19,7 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
         <div>
           <h1 className="text-2xl font-semibold">{order.orderNumber}</h1>
           <p className="text-sm text-[var(--muted-foreground)]">Booked by {order.bookedBy.name} on {order.orderDate.toLocaleString()}</p>
-          <div className="mt-2 flex gap-2"><Badge>{order.orderStage}</Badge><Badge>{order.paymentStatus}</Badge></div>
+          <div className="mt-2 flex flex-wrap gap-2"><OrderStageBadge stage={order.orderStage} /><PaymentStatusBadge status={order.paymentStatus} /></div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="secondary"><a href={`tel:${order.customer.primaryPhone}`}><Phone className="h-4 w-4" /> Call</a></Button>
@@ -51,11 +51,13 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
           </Card>
           <Card>
             <CardHeader><h2 className="font-semibold">Timeline</h2></CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="divide-y divide-[var(--border)] p-0">
               {order.statusHistory.map((item) => (
-                <div key={item.id} className="border-l-2 border-[var(--primary)] pl-3">
-                  <p className="text-sm font-medium">{item.previousStatus ?? "START"} to {item.newStatus}</p>
-                  <p className="text-xs text-[var(--muted-foreground)]">{item.changedBy.name} at {item.createdAt.toLocaleString()}</p>
+                <div key={item.id} className="grid gap-2 p-4 sm:grid-cols-[1fr_auto] sm:items-start">
+                  <div>
+                    <p className="text-sm font-medium">{formatEnumLabel(item.previousStatus ?? "START")} to {formatEnumLabel(item.newStatus)}</p>
+                    <p className="text-xs text-[var(--muted-foreground)]">{item.changedBy.name} at {item.createdAt.toLocaleString()}</p>
+                  </div>
                   {item.notes ? <p className="text-sm">{item.notes}</p> : null}
                 </div>
               ))}
@@ -68,7 +70,9 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
             </CardContent>
           </Card>
         </div>
-        <aside className="space-y-4">
+        <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+          <StatusForm orderId={order.id} currentStage={order.orderStage} />
+          <PaymentForm orderId={order.id} />
           <Card>
             <CardHeader><h2 className="font-semibold">Price breakdown</h2></CardHeader>
             <CardContent className="space-y-2 text-sm">
@@ -80,8 +84,6 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
               <Line label="Remaining" value={asCurrency(Number(order.remainingBalance))} strong />
             </CardContent>
           </Card>
-          <PaymentForm orderId={order.id} />
-          <StatusForm orderId={order.id} currentStage={order.orderStage} />
           <Card>
             <CardHeader><h2 className="font-semibold">Payments</h2></CardHeader>
             <CardContent className="space-y-3">
