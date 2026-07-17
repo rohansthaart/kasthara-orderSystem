@@ -26,7 +26,7 @@ export async function signAccessToken(user: SessionUser) {
   return new SignJWT(user)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("15m")
+    .setExpirationTime("7d")
     .sign(encoder.encode(requiredEnv("JWT_ACCESS_SECRET")));
 }
 
