@@ -17,7 +17,7 @@ export function LoginForm() {
   const [error, setError] = useState("");
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "admin@kasthara.local", password: "password123" },
+    defaultValues: { email: "", password: "" },
   });
   async function onSubmit(values: LoginValues) {
     setError("");

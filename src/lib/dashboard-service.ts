@@ -46,6 +46,14 @@ export async function getDashboardSummary() {
     prisma.order.groupBy({ by: ["deliveryMethod"], _count: true, orderBy: { deliveryMethod: "asc" } }),
   ]);
 
+  const staffUsers = staffBookings.length
+    ? await prisma.user.findMany({
+        where: { id: { in: staffBookings.map((item) => item.bookedByUserId) } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const staffNameById = new Map(staffUsers.map((user) => [user.id, user.name]));
+
   return {
     cards: {
       ordersToday,
@@ -66,7 +74,11 @@ export async function getDashboardSummary() {
       dailyOrders,
       productPerformance,
       paymentMethods,
-      staffBookings,
+      staffBookings: staffBookings.map((item) => ({
+        staffId: item.bookedByUserId,
+        staffName: staffNameById.get(item.bookedByUserId) ?? "Unknown staff",
+        count: item._count,
+      })),
       deliveryDistribution,
     },
   };

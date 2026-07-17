@@ -1,19 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ClipboardList, LayoutDashboard, Package, Plus, Upload, Users, WalletCards } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { AppNavLinks } from "@/components/app-nav-links";
 import { MobileNavDrawer } from "@/components/mobile-nav-drawer";
 
 const nav = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/orders/new", label: "New Order", icon: Plus },
-  { href: "/orders", label: "Orders", icon: ClipboardList },
-  { href: "/queues", label: "Queues", icon: Package },
-  { href: "/payments", label: "Payments", icon: WalletCards },
-  { href: "/admin/import", label: "Import", icon: Upload },
-  { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { href: "/orders/new", label: "New Order", icon: "plus" },
+  { href: "/orders", label: "Orders", icon: "orders" },
+  { href: "/queues", label: "Queues", icon: "queues" },
+  { href: "/payments", label: "Payments", icon: "payments" },
+  { href: "/admin/import", label: "Import", icon: "import" },
+  { href: "/admin/users", label: "Users", icon: "users" },
 ];
 
 export async function AppShell({ children }: { children: React.ReactNode }) {

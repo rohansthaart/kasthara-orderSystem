@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Menu, X, type LucideIcon } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Menu, Package, Plus, Upload, Users, WalletCards, X, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,7 +11,17 @@ import { cn } from "@/lib/utils";
 type NavItem = {
   href: string;
   label: string;
-  icon: LucideIcon;
+  icon: string;
+};
+
+const icons: Record<string, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  plus: Plus,
+  orders: ClipboardList,
+  queues: Package,
+  payments: WalletCards,
+  import: Upload,
+  users: Users,
 };
 
 export function MobileNavDrawer({ items, userName, userRole }: { items: NavItem[]; userName: string; userRole: string }) {
@@ -43,7 +53,7 @@ export function MobileNavDrawer({ items, userName, userRole }: { items: NavItem[
           </div>
           <nav className="flex-1 space-y-1 overflow-y-auto p-3">
             {items.map((item) => {
-              const Icon = item.icon;
+              const Icon = icons[item.icon] ?? ClipboardList;
               const active = pathname === "/orders/new" ? item.href === "/orders/new" : pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link

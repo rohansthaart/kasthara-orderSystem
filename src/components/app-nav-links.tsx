@@ -2,13 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { LucideIcon } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Package, Plus, Upload, Users, WalletCards, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
   href: string;
   label: string;
-  icon: LucideIcon;
+  icon: string;
+};
+
+const icons: Record<string, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  plus: Plus,
+  orders: ClipboardList,
+  queues: Package,
+  payments: WalletCards,
+  import: Upload,
+  users: Users,
 };
 
 export function AppNavLinks({ items }: { items: NavItem[] }) {
@@ -17,7 +27,7 @@ export function AppNavLinks({ items }: { items: NavItem[] }) {
   return (
     <nav className="space-y-1 p-3">
       {items.map((item) => {
-        const Icon = item.icon;
+        const Icon = icons[item.icon] ?? ClipboardList;
         const active = pathname === "/orders/new" ? item.href === "/orders/new" : pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (
           <Link
