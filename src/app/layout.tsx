@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Kasthara Order System",
   description: "Order management for Kasthara custom gifts",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({
