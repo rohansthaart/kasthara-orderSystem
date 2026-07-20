@@ -1,4 +1,4 @@
-import { startOfDay, endOfDay, startOfWeek, subDays } from "date-fns";
+import { format, startOfDay, endOfDay, startOfWeek, subDays } from "date-fns";
 import { prisma } from "./prisma";
 
 export async function getDashboardSummary() {
@@ -6,6 +6,8 @@ export async function getDashboardSummary() {
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const reportStart = startOfDay(subDays(now, 29));
+  const activeOrderStages = ["CANCELLED", "RETURNED"] as const;
   const [
     ordersToday,
     ordersThisWeek,
@@ -20,12 +22,10 @@ export async function getDashboardSummary() {
     followUpsDueToday,
     unpaid,
     partiallyPaid,
-    dailyOrders,
     productPerformance,
-    paymentMethods,
-    staffBookings,
-    deliveryDistribution,
-  ] = await prisma.$transaction([
+    reportOrders,
+    reportPayments,
+  ] = await Promise.all([
     prisma.order.count({ where: { orderDate: { gte: todayStart, lte: todayEnd } } }),
     prisma.order.count({ where: { orderDate: { gte: weekStart } } }),
     prisma.order.aggregate({ where: { orderDate: { gte: todayStart, lte: todayEnd } }, _sum: { totalPrice: true } }),
@@ -39,20 +39,36 @@ export async function getDashboardSummary() {
     prisma.order.count({ where: { followUpAt: { gte: todayStart, lte: todayEnd } } }),
     prisma.order.count({ where: { paymentStatus: "UNPAID" } }),
     prisma.order.count({ where: { paymentStatus: "PARTIALLY_PAID" } }),
-    prisma.order.groupBy({ by: ["orderDate"], where: { orderDate: { gte: subDays(now, 14) } }, _count: true, orderBy: { orderDate: "asc" } }),
-    prisma.orderItem.groupBy({ by: ["productType"], _sum: { lineTotal: true, quantity: true }, orderBy: { _sum: { lineTotal: "desc" } }, take: 8 }),
-    prisma.payment.groupBy({ by: ["paymentMethod"], _sum: { amount: true }, orderBy: { paymentMethod: "asc" } }),
-    prisma.order.groupBy({ by: ["bookedByUserId"], _count: true, orderBy: { bookedByUserId: "asc" } }),
-    prisma.order.groupBy({ by: ["deliveryMethod"], _count: true, orderBy: { deliveryMethod: "asc" } }),
+    prisma.orderItem.groupBy({
+      by: ["productType"],
+      where: { order: { orderDate: { gte: reportStart }, orderStage: { notIn: [...activeOrderStages] } } },
+      _sum: { lineTotal: true, quantity: true },
+      orderBy: { _sum: { lineTotal: "desc" } }, take: 8,
+    }),
+    prisma.order.findMany({
+      where: { orderDate: { gte: reportStart }, orderStage: { notIn: [...activeOrderStages] } },
+      select: { orderDate: true, bookedBy: { select: { name: true } }, deliveryMethod: true, source: { select: { name: true } } },
+    }),
+    prisma.payment.findMany({
+      where: { paidAt: { gte: reportStart }, order: { orderStage: { notIn: [...activeOrderStages] } } },
+      select: { amount: true, paymentMethod: true, paymentType: true },
+    }),
   ]);
-
-  const staffUsers = staffBookings.length
-    ? await prisma.user.findMany({
-        where: { id: { in: staffBookings.map((item) => item.bookedByUserId) } },
-        select: { id: true, name: true },
-      })
-    : [];
-  const staffNameById = new Map(staffUsers.map((user) => [user.id, user.name]));
+  const grouped = <T>(values: T[], key: (value: T) => string) => {
+    const counts = new Map<string, number>();
+    for (const value of values) counts.set(key(value), (counts.get(key(value)) ?? 0) + 1);
+    return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+  };
+  const paymentByMethod = new Map<string, number>();
+  for (const payment of reportPayments) {
+    const signedAmount = payment.paymentType === "REFUND" ? -Number(payment.amount) : Number(payment.amount);
+    paymentByMethod.set(payment.paymentMethod, (paymentByMethod.get(payment.paymentMethod) ?? 0) + signedAmount);
+  }
+  const dailyOrders = Array.from({ length: 30 }, (_, index) => {
+    const date = startOfDay(subDays(now, 29 - index));
+    const key = format(date, "yyyy-MM-dd");
+    return { date: key, label: format(date, "d MMM"), count: reportOrders.filter((order) => format(order.orderDate, "yyyy-MM-dd") === key).length };
+  });
 
   return {
     cards: {
@@ -73,14 +89,12 @@ export async function getDashboardSummary() {
     charts: {
       dailyOrders,
       productPerformance,
-      paymentMethods,
-      staffBookings: staffBookings.map((item) => ({
-        staffId: item.bookedByUserId,
-        staffName: staffNameById.get(item.bookedByUserId) ?? "Unknown staff",
-        count: item._count,
-      })),
-      deliveryDistribution,
+      paymentMethods: [...paymentByMethod.entries()].filter(([, value]) => value !== 0).map(([paymentMethod, value]) => ({ paymentMethod, value })).sort((a, b) => b.value - a.value),
+      staffBookings: grouped(reportOrders, (order) => order.bookedBy.name).map((item) => ({ staffName: item.label, count: item.count })),
+      deliveryDistribution: grouped(reportOrders, (order) => order.deliveryMethod).map((item) => ({ deliveryMethod: item.label, count: item.count })),
+      sourceDistribution: grouped(reportOrders, (order) => order.source?.name ?? "Not recorded").map((item) => ({ sourceName: item.label, count: item.count })),
     },
+    reportingPeriod: { start: reportStart, end: now },
   };
 }
 
@@ -98,17 +112,17 @@ export async function getTodayWorkQueues() {
     followUpAt: true,
     deliveryMethod: true,
     customer: { select: { name: true, primaryPhone: true } },
-    items: true,
+    items: { select: { productNameSnapshot: true, quantity: true } },
   };
   const [followUpToday, produceToday, packToday, deliverToday, pickupReady, outstandingPayments, overdueOrders] =
-    await prisma.$transaction([
-      prisma.order.findMany({ where: { followUpAt: { gte: todayStart, lte: todayEnd } }, select, take: 50 }),
-      prisma.order.findMany({ where: { orderStage: { in: ["DESIGN_APPROVED", "IN_PRODUCTION"] } }, select, take: 50 }),
-      prisma.order.findMany({ where: { orderStage: "READY_TO_PACK" }, select, take: 50 }),
-      prisma.order.findMany({ where: { orderStage: { in: ["PACKED", "SHIPPED"] }, deliveryMethod: { in: ["DELIVERY", "COURIER"] } }, select, take: 50 }),
-      prisma.order.findMany({ where: { orderStage: "PICKUP_READY" }, select, take: 50 }),
-      prisma.order.findMany({ where: { paymentStatus: { in: ["UNPAID", "PARTIALLY_PAID"] } }, select, take: 50 }),
-      prisma.order.findMany({ where: { requiredDeliveryAt: { lt: now }, orderStage: { notIn: ["DELIVERED", "CANCELLED", "RETURNED"] } }, select, take: 50 }),
+    await Promise.all([
+      prisma.order.findMany({ where: { followUpAt: { gte: todayStart, lte: todayEnd } }, select, orderBy: { followUpAt: "asc" }, take: 50 }),
+      prisma.order.findMany({ where: { orderStage: { in: ["DESIGN_APPROVED", "IN_PRODUCTION"] } }, select, orderBy: { requiredDeliveryAt: "asc" }, take: 50 }),
+      prisma.order.findMany({ where: { orderStage: "READY_TO_PACK" }, select, orderBy: { requiredDeliveryAt: "asc" }, take: 50 }),
+      prisma.order.findMany({ where: { orderStage: { in: ["PACKED", "SHIPPED"] }, deliveryMethod: { in: ["DELIVERY", "COURIER"] } }, select, orderBy: { requiredDeliveryAt: "asc" }, take: 50 }),
+      prisma.order.findMany({ where: { orderStage: "PICKUP_READY" }, select, orderBy: { requiredDeliveryAt: "asc" }, take: 50 }),
+      prisma.order.findMany({ where: { paymentStatus: { in: ["UNPAID", "PARTIALLY_PAID"] } }, select, orderBy: { remainingBalance: "desc" }, take: 50 }),
+      prisma.order.findMany({ where: { requiredDeliveryAt: { lt: now }, orderStage: { notIn: ["DELIVERED", "CANCELLED", "RETURNED"] } }, select, orderBy: { requiredDeliveryAt: "asc" }, take: 50 }),
     ]);
   return { followUpToday, produceToday, packToday, deliverToday, pickupReady, outstandingPayments, overdueOrders };
 }

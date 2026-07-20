@@ -1,7 +1,7 @@
 import { handleRouteError, ok, fail } from "@/lib/api-response";
 import { requireRole } from "@/lib/auth";
-import { changeOrderStatus, getOrderById } from "@/lib/order-service";
-import { orderUpdateSchema } from "@/lib/validation";
+import { changeOrderStatus, getOrderById, updateOrderDetails } from "@/lib/order-service";
+import { orderEditSchema, orderUpdateSchema } from "@/lib/validation";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -19,12 +19,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const user = await requireRole(["ADMIN", "STAFF"]);
     const { id } = await context.params;
-    const body = orderUpdateSchema.parse(await request.json());
+    const rawBody = await request.json();
+    const body = orderUpdateSchema.parse(rawBody);
     if (body.orderStage) {
       const order = await changeOrderStatus(id, { orderStage: body.orderStage }, user);
       return ok(order, "Order updated successfully");
     }
-    return fail("This endpoint currently supports status updates. Use focused endpoints for payments and cancellation.", 400);
+    const order = await updateOrderDetails(id, orderEditSchema.parse(rawBody), user);
+    return ok(order, "Order details updated successfully");
   } catch (error) {
     return handleRouteError(error);
   }

@@ -11,6 +11,7 @@ export const paymentSchema = z.object({
   amount: z.coerce.number().positive(),
   paymentType: z.enum(PAYMENT_TYPES).default("ADDITIONAL"),
   paymentMethod: z.enum(PAYMENT_METHODS),
+  receivedByUserId: z.string().min(1).optional(),
   referenceNumber: z.string().trim().optional(),
   paidAt: z.coerce.date().optional(),
   notes: z.string().trim().optional(),
@@ -39,6 +40,8 @@ export const orderCreateSchema = z.object({
   deliveryCharge: z.coerce.number().nonnegative().default(0),
   advancePayment: z.coerce.number().nonnegative().default(0),
   paymentMethod: z.enum(PAYMENT_METHODS).optional(),
+  advanceReceivedByUserId: z.string().min(1).optional(),
+  sourceId: z.string().min(1),
   deliveryMethod: z.enum(DELIVERY_METHODS),
   deliveryAddress: z.string().optional(),
   pickupLocation: z.string().optional(),
@@ -49,6 +52,18 @@ export const orderCreateSchema = z.object({
 
 export const orderUpdateSchema = orderCreateSchema.partial().extend({
   orderStage: z.enum(ORDER_STAGES).optional(),
+});
+
+export const orderEditSchema = z.object({
+  quantity: z.coerce.number().int().positive(),
+  unitPrice: z.coerce.number().nonnegative(),
+  discount: z.coerce.number().nonnegative(),
+  deliveryCharge: z.coerce.number().nonnegative(),
+  deliveryMethod: z.enum(DELIVERY_METHODS),
+  deliveryAddress: z.string().optional(),
+  pickupLocation: z.string().optional(),
+  requiredDeliveryAt: z.coerce.date().optional(),
+  specialNotes: z.string().optional(),
 });
 
 export const orderQuerySchema = z.object({
@@ -71,6 +86,30 @@ export const productSchema = z.object({
   productType: z.string().min(1),
   defaultPrice: z.coerce.number().nonnegative(),
   isActive: z.boolean().default(true),
+});
+
+export const orderSourceSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  isActive: z.boolean().default(true),
+});
+
+export const labelSettingSchema = z.object({
+  widthMm: z.coerce.number().int().min(20).max(150),
+  heightMm: z.coerce.number().int().min(15).max(150),
+  marginMm: z.coerce.number().int().min(0).max(10),
+  fontSize: z.coerce.number().int().min(6).max(18),
+  dpi: z.coerce.number().int().min(150).max(600),
+  showAddress: z.boolean(),
+  showNotes: z.boolean(),
+  showBalance: z.boolean(),
+  showRequiredAt: z.boolean(),
+}).refine((value) => value.marginMm * 2 < Math.min(value.widthMm, value.heightMm), {
+  message: "Margin is too large for this label size",
+  path: ["marginMm"],
+});
+
+export const paymentReceiverUpdateSchema = z.object({
+  receivedByUserId: z.string().min(1),
 });
 
 export const userSchema = z.object({

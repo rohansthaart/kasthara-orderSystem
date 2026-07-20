@@ -4,12 +4,13 @@ import { calculateAmountPaid, calculatePaymentStatus, calculateRemainingBalance,
 import { normalizeNepalPhone, lastFourPhoneDigits } from "./phone";
 import type { SessionUser } from "./auth";
 import type { z } from "zod";
-import type { orderCreateSchema, orderQuerySchema, paymentSchema, statusSchema } from "./validation";
+import type { orderCreateSchema, orderEditSchema, orderQuerySchema, paymentSchema, statusSchema } from "./validation";
 
 type CreateOrderInput = z.infer<typeof orderCreateSchema>;
 type OrderQueryInput = z.infer<typeof orderQuerySchema>;
 type PaymentInput = z.infer<typeof paymentSchema>;
 type StatusInput = z.infer<typeof statusSchema>;
+type OrderEditInput = z.infer<typeof orderEditSchema>;
 
 export async function getNextOrderNumber(date = new Date()) {
   const dateKey = dailySequenceKey(date);
@@ -41,6 +42,11 @@ export async function createOrder(input: CreateOrderInput, user: SessionUser) {
       deliveryCharge: input.deliveryCharge,
     });
     const amountPaid = input.advancePayment > 0 ? input.advancePayment : 0;
+    const advanceReceivedByUserId = input.advanceReceivedByUserId ?? user.id;
+    if (amountPaid > 0) {
+      const receiver = await tx.user.findFirst({ where: { id: advanceReceivedByUserId, isActive: true }, select: { id: true } });
+      if (!receiver) throw new Error("Select an active staff member who received the advance payment");
+    }
     const remainingBalance = calculateRemainingBalance(totalPrice, amountPaid);
     const paymentStatus = calculatePaymentStatus({ totalPrice, amountPaid });
 
@@ -78,6 +84,7 @@ export async function createOrder(input: CreateOrderInput, user: SessionUser) {
         requiredDeliveryAt: input.requiredDeliveryAt,
         followUpAt: input.followUpAt,
         specialNotes: input.specialNotes,
+        sourceId: input.sourceId,
         bookedByUserId: user.id,
         items: {
           create: input.items.map((item) => ({
@@ -97,7 +104,7 @@ export async function createOrder(input: CreateOrderInput, user: SessionUser) {
                   amount: amountPaid,
                   paymentType: "ADVANCE",
                   paymentMethod: input.paymentMethod,
-                  receivedByUserId: user.id,
+                  receivedByUserId: advanceReceivedByUserId,
                   paidAt: orderDate,
                 },
               }
@@ -160,6 +167,7 @@ export async function listOrders(query: OrderQueryInput) {
       include: {
         customer: true,
         bookedBy: { select: { id: true, name: true } },
+        source: { select: { id: true, name: true } },
         items: true,
       },
       orderBy: { [query.sortBy]: query.sortDir },
@@ -190,6 +198,9 @@ export async function addPayment(orderId: string, input: PaymentInput, user: Ses
   return prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({ where: { id: orderId }, include: { payments: true } });
     if (!order) throw new Error("Order not found");
+    const receivedByUserId = input.receivedByUserId ?? user.id;
+    const receiver = await tx.user.findFirst({ where: { id: receivedByUserId, isActive: true }, select: { id: true } });
+    if (!receiver) throw new Error("Select an active staff member who received the payment");
     const payment = await tx.payment.create({
       data: {
         orderId,
@@ -197,7 +208,7 @@ export async function addPayment(orderId: string, input: PaymentInput, user: Ses
         paymentType: input.paymentType,
         paymentMethod: input.paymentMethod,
         referenceNumber: input.referenceNumber,
-        receivedByUserId: user.id,
+        receivedByUserId,
         paidAt: input.paidAt ?? new Date(),
         notes: input.notes,
       },
@@ -206,11 +217,12 @@ export async function addPayment(orderId: string, input: PaymentInput, user: Ses
       ...order.payments.map((item) => ({ amount: Number(item.amount), paymentType: item.paymentType })),
       { amount: input.amount, paymentType: input.paymentType },
     ]);
-    const remainingBalance = calculateRemainingBalance(Number(order.totalPrice), amountPaid);
+    const totalPrice = Number(order.totalPrice);
+    const remainingBalance = calculateRemainingBalance(totalPrice, amountPaid);
     const paymentStatus = calculatePaymentStatus({
-      totalPrice: Number(order.totalPrice),
+      totalPrice,
       amountPaid,
-      refunded: input.paymentType === "REFUND" && amountPaid <= 0,
+      refunded: input.paymentType === "REFUND" && remainingBalance >= totalPrice,
     });
     await tx.order.update({
       where: { id: orderId },
@@ -227,8 +239,49 @@ export async function addPayment(orderId: string, input: PaymentInput, user: Ses
           amount: input.amount,
           paymentType: input.paymentType,
           paymentMethod: input.paymentMethod,
-          receivedByUserId: user.id,
+          receivedByUserId,
         },
+      },
+    });
+    return tx.order.findUnique({ where: { id: orderId }, include: orderInclude });
+  });
+}
+
+export async function updateOrderDetails(orderId: string, input: OrderEditInput, user: SessionUser) {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true, payments: true } });
+    if (!order) throw new Error("Order not found");
+    const primaryItem = order.items[0];
+    if (!primaryItem) throw new Error("Order has no items to update");
+    const subtotal = roundMoney(input.quantity * input.unitPrice);
+    const totalPrice = calculateTotalPrice({ subtotal, discount: input.discount, deliveryCharge: input.deliveryCharge });
+    const amountPaid = calculateAmountPaid(order.payments.map((payment) => ({ amount: Number(payment.amount), paymentType: payment.paymentType })));
+    const remainingBalance = calculateRemainingBalance(totalPrice, amountPaid);
+    const paymentStatus = calculatePaymentStatus({ totalPrice, amountPaid });
+    await tx.orderItem.update({ where: { id: primaryItem.id }, data: { quantity: input.quantity, unitPrice: input.unitPrice, lineTotal: subtotal } });
+    await tx.order.update({
+      where: { id: orderId },
+      data: {
+        quantity: input.quantity,
+        subtotal,
+        discount: input.discount,
+        deliveryCharge: input.deliveryCharge,
+        totalPrice,
+        amountPaid,
+        remainingBalance,
+        paymentStatus,
+        deliveryMethod: input.deliveryMethod,
+        deliveryAddress: input.deliveryAddress,
+        pickupLocation: input.pickupLocation,
+        requiredDeliveryAt: input.requiredDeliveryAt,
+        specialNotes: input.specialNotes,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        userId: user.id, orderId, entityType: "Order", entityId: orderId, action: "UPDATE_DETAILS",
+        previousData: { quantity: order.quantity, subtotal: order.subtotal, discount: order.discount, deliveryCharge: order.deliveryCharge, totalPrice: order.totalPrice },
+        newData: { quantity: input.quantity, subtotal, discount: input.discount, deliveryCharge: input.deliveryCharge, totalPrice, amountPaid, paymentStatus },
       },
     });
     return tx.order.findUnique({ where: { id: orderId }, include: orderInclude });
@@ -284,6 +337,7 @@ export const orderInclude = {
   customer: true,
   bookedBy: { select: { id: true, name: true, email: true } },
   items: true,
+  source: { select: { id: true, name: true } },
   payments: { include: { receivedBy: { select: { id: true, name: true } } }, orderBy: { paidAt: "desc" as const } },
   statusHistory: { include: { changedBy: { select: { id: true, name: true } } }, orderBy: { createdAt: "desc" as const } },
   printLogs: { include: { printedBy: { select: { id: true, name: true } } }, orderBy: { printedAt: "desc" as const } },

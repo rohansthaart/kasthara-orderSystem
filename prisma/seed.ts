@@ -29,7 +29,7 @@ async function main() {
       passwordHash: await hashPassword("password123"),
     },
   });
-  const staff = await prisma.user.upsert({
+  const admin2 = await prisma.user.upsert({
     where: { email: "rohanstha000@gmail.com" },
     update: {},
     create: {
@@ -56,8 +56,8 @@ async function main() {
 
   await prisma.labelSetting.upsert({
     where: { name: "Default" },
-    update: { widthMm: 48, heightMm: 30, marginMm: 2, fontSize: 8 },
-    create: { name: "Default", widthMm: 48, heightMm: 30, marginMm: 2, fontSize: 8 },
+    update: { widthMm: 48, heightMm: 30, marginMm: 2, fontSize: 8, dpi: 203 },
+    create: { name: "Default", widthMm: 48, heightMm: 30, marginMm: 2, fontSize: 8, dpi: 203 },
   });
 
 //   const customer = await prisma.customer.upsert({

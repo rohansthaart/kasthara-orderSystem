@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { buildOrderNumber } from "./order-number";
 import { normalizeNepalPhone } from "./phone";
 import { calculateAmountPaid, calculatePaymentStatus, calculateRemainingBalance, calculateTotalPrice } from "./payments";
-import { orderQrValue, parseOrderQrValue } from "./qr";
+import { customerPhoneQrValue, orderQrValue, parseOrderQrValue } from "./qr";
+import { mmToDots, normaliseLabelSettings } from "./label-settings";
 import { mapLegacyStage, previewImport } from "./excel-service";
 import ExcelJS from "exceljs";
 
@@ -25,6 +26,7 @@ describe("Kasthara business rules", () => {
     expect(calculatePaymentStatus({ totalPrice: total, amountPaid: paid })).toBe("PARTIALLY_PAID");
     expect(calculatePaymentStatus({ totalPrice: total, amountPaid: 0 })).toBe("UNPAID");
     expect(calculatePaymentStatus({ totalPrice: total, amountPaid: 1550 })).toBe("PAID");
+    expect(calculatePaymentStatus({ totalPrice: 0, amountPaid: 0 })).toBe("PAID");
   });
 
   it("keeps QR values free from customer personal information", () => {
@@ -32,6 +34,16 @@ describe("Kasthara business rules", () => {
     expect(value).toBe("KASORDER:KAS-260714-012");
     expect(parseOrderQrValue(value)).toBe("KAS-260714-012");
     expect(value).not.toContain("980");
+  });
+
+  it("creates a compact direct-call QR value for delivery", () => {
+    expect(customerPhoneQrValue("+977 980-123-4567")).toBe("tel:+9779801234567");
+  });
+
+  it("converts saved label dimensions to printer dots", () => {
+    expect(mmToDots(48, 203)).toBe(384);
+    expect(mmToDots(30, 203)).toBe(240);
+    expect(normaliseLabelSettings({ widthMm: 60, heightMm: 40, dpi: 300 })).toMatchObject({ widthMm: 60, heightMm: 40, dpi: 300 });
   });
 
   it("maps legacy statuses", () => {

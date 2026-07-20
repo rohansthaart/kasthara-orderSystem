@@ -45,7 +45,11 @@ textarea {
 }
 
 @media print {
+  html,
   body {
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
     background: white;
   }
   .no-print {
@@ -54,4 +58,36 @@ textarea {
   .print-only {
     display: block !important;
   }
+  body:has(.label-print-page) .min-h-dvh {
+    min-height: 0 !important;
+  }
+  body:has(.label-print-page) main,
+  .label-print-page,
+  .label-preview-frame {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .bulk-label-grid {
+    display: block !important;
+  }
+  .label-print-page .label-sheet {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .bulk-label-grid .label-sheet {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .bulk-label-grid .label-sheet:not(:last-child) {
+    break-after: page;
+    page-break-after: always;
+  }
+}
+
+.bulk-label-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48mm, 1fr));
+  gap: 1rem;
+  justify-items: center;
 }

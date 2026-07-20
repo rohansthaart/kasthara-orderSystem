@@ -26,7 +26,7 @@ export async function signAccessToken(user: SessionUser) {
   return new SignJWT(user)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime("30d")
     .sign(encoder.encode(requiredEnv("JWT_ACCESS_SECRET")));
 }
 
@@ -40,7 +40,9 @@ export async function signRefreshToken(user: SessionUser, tokenVersion: number) 
 
 export async function setAuthCookies(user: SessionUser, refreshTokenVersion: number) {
   const cookieStore = await cookies();
-  cookieStore.set(accessCookie, await signAccessToken(user), cookieOptions(15 * 60));
+  // Keep the access cookie and token aligned. Previously the cookie expired after
+  // 15 minutes even though the token itself was valid for days.
+  cookieStore.set(accessCookie, await signAccessToken(user), cookieOptions(30 * 24 * 60 * 60));
   cookieStore.set(refreshCookie, await signRefreshToken(user, refreshTokenVersion), cookieOptions(30 * 24 * 60 * 60));
 }
 

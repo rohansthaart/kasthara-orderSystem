@@ -30,11 +30,11 @@ export function StatusForm({ orderId, currentStage }: { orderId: string; current
     router.refresh();
   }
   return (
-    <Card>
-      <CardHeader><h2 className="font-semibold">Status</h2></CardHeader>
-      <CardContent>
-        <div className="mb-4 rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] p-3">
-          <p className="mb-2 text-xs font-medium text-[var(--muted-foreground)]">Quick action</p>
+    <Card className="overflow-hidden rounded-[1.5rem] border-0 shadow-[0_18px_50px_-34px_rgba(41,62,43,0.5)]">
+      <CardHeader className="border-0 bg-transparent px-5 pb-2 pt-5"><h2 className="font-semibold">Move order forward</h2><p className="mt-1 text-sm text-[var(--muted-foreground)]">Use the suggested next step or set a specific stage.</p></CardHeader>
+      <CardContent className="px-5 pb-5 pt-2">
+        <div className="mb-4 rounded-2xl bg-[var(--surface-subtle)] p-3">
+          <p className="mb-2 text-xs font-medium text-[var(--muted-foreground)]">Suggested action</p>
           <StatusQuickActions orderId={orderId} currentStage={currentStage} />
         </div>
         <form action={submit} className="space-y-3">
@@ -46,10 +46,10 @@ export function StatusForm({ orderId, currentStage }: { orderId: string; current
           </div>
           <div className="space-y-2">
             <Label>Notes</Label>
-            <input name="notes" className="h-11 w-full rounded-md border border-[var(--border)] px-3 text-sm" />
+            <input name="notes" placeholder="Why is this changing?" className="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--ring)]" />
           </div>
-          <Button className="w-full" type="submit" variant="secondary">Update with note</Button>
-          {error ? <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+          <Button className="w-full rounded-xl" type="submit" variant="secondary">Update with note</Button>
+          {error ? <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p> : null}
         </form>
       </CardContent>
     </Card>

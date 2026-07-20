@@ -31,6 +31,8 @@ export function calculatePaymentStatus(input: {
   refunded?: boolean;
 }): PaymentStatusValue {
   if (input.refunded) return "REFUNDED";
+  // A fully discounted order has nothing left to collect, so it is settled.
+  if (input.totalPrice <= 0) return "PAID";
   if (input.amountPaid <= 0) return "UNPAID";
   if (input.amountPaid < input.totalPrice) return "PARTIALLY_PAID";
   return "PAID";

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ClipboardList, LayoutDashboard, Package, Plus, Upload, Users, WalletCards, type LucideIcon } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Package, Plus, Settings, Upload, Users, WalletCards, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -19,6 +19,7 @@ const icons: Record<string, LucideIcon> = {
   payments: WalletCards,
   import: Upload,
   users: Users,
+  settings: Settings,
 };
 
 export function AppNavLinks({ items }: { items: NavItem[] }) {

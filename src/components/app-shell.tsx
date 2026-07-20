@@ -13,6 +13,7 @@ const nav = [
   { href: "/payments", label: "Payments", icon: "payments" },
   { href: "/admin/import", label: "Import", icon: "import" },
   { href: "/admin/users", label: "Users", icon: "users" },
+  { href: "/admin/settings", label: "Settings", icon: "settings" },
 ];
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
