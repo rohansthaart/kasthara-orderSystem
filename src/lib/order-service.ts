@@ -12,6 +12,8 @@ type PaymentInput = z.infer<typeof paymentSchema>;
 type StatusInput = z.infer<typeof statusSchema>;
 type OrderEditInput = z.infer<typeof orderEditSchema>;
 
+const ORDER_TRANSACTION_TIMEOUT_MS = 15_000;
+
 export async function getNextOrderNumber(date = new Date()) {
   const dateKey = dailySequenceKey(date);
   const seq = await prisma.dailyOrderSequence.upsert({
@@ -23,8 +25,23 @@ export async function getNextOrderNumber(date = new Date()) {
 }
 
 export async function createOrder(input: CreateOrderInput, user: SessionUser) {
-  return prisma.$transaction(async (tx) => {
-    const orderDate = new Date();
+  const orderDate = new Date();
+  const normalizedPhone = normalizeNepalPhone(input.primaryPhone);
+  const subtotal = roundMoney(
+    input.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
+  );
+  const totalPrice = calculateTotalPrice({
+    subtotal,
+    discount: input.discount,
+    deliveryCharge: input.deliveryCharge,
+  });
+  const amountPaid = input.advancePayment > 0 ? input.advancePayment : 0;
+  const advanceReceivedByUserId = input.advanceReceivedByUserId ?? user.id;
+  const remainingBalance = calculateRemainingBalance(totalPrice, amountPaid);
+  const paymentStatus = calculatePaymentStatus({ totalPrice, amountPaid });
+  const quantity = input.items.reduce((sum, item) => sum + item.quantity, 0);
+
+  const orderId = await prisma.$transaction(async (tx) => {
     const dateKey = dailySequenceKey(orderDate);
     const sequence = await tx.dailyOrderSequence.upsert({
       where: { dateKey },
@@ -32,23 +49,10 @@ export async function createOrder(input: CreateOrderInput, user: SessionUser) {
       update: { lastValue: { increment: 1 } },
     });
     const orderNumber = buildOrderNumber(orderDate, sequence.lastValue);
-    const normalizedPhone = normalizeNepalPhone(input.primaryPhone);
-    const subtotal = roundMoney(
-      input.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
-    );
-    const totalPrice = calculateTotalPrice({
-      subtotal,
-      discount: input.discount,
-      deliveryCharge: input.deliveryCharge,
-    });
-    const amountPaid = input.advancePayment > 0 ? input.advancePayment : 0;
-    const advanceReceivedByUserId = input.advanceReceivedByUserId ?? user.id;
     if (amountPaid > 0) {
       const receiver = await tx.user.findFirst({ where: { id: advanceReceivedByUserId, isActive: true }, select: { id: true } });
       if (!receiver) throw new Error("Select an active staff member who received the advance payment");
     }
-    const remainingBalance = calculateRemainingBalance(totalPrice, amountPaid);
-    const paymentStatus = calculatePaymentStatus({ totalPrice, amountPaid });
 
     const customer = await tx.customer.upsert({
       where: { normalizedPhone },
@@ -70,7 +74,7 @@ export async function createOrder(input: CreateOrderInput, user: SessionUser) {
         orderNumber,
         customerId: customer.id,
         orderDate,
-        quantity: input.items.reduce((sum, item) => sum + item.quantity, 0),
+        quantity,
         subtotal,
         discount: input.discount,
         deliveryCharge: input.deliveryCharge,
@@ -126,10 +130,14 @@ export async function createOrder(input: CreateOrderInput, user: SessionUser) {
           },
         },
       },
-      include: orderInclude,
+      select: { id: true },
     });
-    return order;
-  });
+    return order.id;
+  }, { timeout: ORDER_TRANSACTION_TIMEOUT_MS });
+
+  const order = await prisma.order.findUnique({ where: { id: orderId }, include: orderInclude });
+  if (!order) throw new Error("Order was created but could not be retrieved");
+  return order;
 }
 
 export async function listOrders(query: OrderQueryInput) {
